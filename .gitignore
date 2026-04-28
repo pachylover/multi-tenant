@@ -1,0 +1,17 @@
+.idea/
+.vscode/
+**/.DS_Store
+
+# Node
+node_modules/
+dist/
+
+# Java
+**/build/
+**/target/
+.gradle/
+
+# Env
+.env
+.env.*
+

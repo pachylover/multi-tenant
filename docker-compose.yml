@@ -1,0 +1,114 @@
+name: multi-tenant
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: multitenant
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d multitenant"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  db-init:
+    image: postgres:16
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: app
+    entrypoint:
+      - sh
+      - -lc
+      - |
+        echo "[db-init] ensuring nextcloud database exists";
+        exists="$$(psql -h db -U app -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='nextcloud'")";
+        if [ "$$exists" != "1" ]; then
+          psql -h db -U app -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE nextcloud OWNER app;";
+        fi
+        echo "[db-init] done";
+    restart: "no"
+
+  nextcloud:
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    build:
+      context: ./nextcloud
+    ports:
+      - "8081:80"
+    environment:
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:-admin}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:-adminpass}
+      NEXTCLOUD_TRUSTED_DOMAINS: ${NEXTCLOUD_TRUSTED_DOMAINS:-localhost nextcloud}
+      POSTGRES_HOST: db
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      NC_AUTO_INIT: ${NC_AUTO_INIT:-true}
+      NC_AUTO_INIT_PASSWORD: ${NC_AUTO_INIT_PASSWORD:-S3curePass_2026!}
+      NC_AUTO_INIT_QUOTA: ${NC_AUTO_INIT_QUOTA:-100 MB}
+    volumes:
+      - nextcloud:/var/www/html
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/status.php || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  backend:
+    build:
+      context: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+      nextcloud:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+      - "9092:9092" # Socket.IO
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/multitenant
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+
+      NEXTCLOUD_BASE_URL: ${NEXTCLOUD_BASE_URL:-http://nextcloud}
+      NEXTCLOUD_USERNAME: ${NEXTCLOUD_USERNAME:-admin}
+      NEXTCLOUD_PASSWORD: ${NEXTCLOUD_PASSWORD:-adminpass}
+
+      SOCKETIO_PORT: 9092
+      USAGE_QUOTA_BYTES_DEFAULT: 104857600
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost:9092}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+
+volumes:
+  pgdata:
+  nextcloud:
+

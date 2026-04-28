@@ -1,0 +1,39 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: multi-tenant-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/multitenant}
+    username: ${SPRING_DATASOURCE_USERNAME:app}
+    password: ${SPRING_DATASOURCE_PASSWORD:app}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+
+nextcloud:
+  base-url: ${NEXTCLOUD_BASE_URL:http://localhost:8081}
+  username: ${NEXTCLOUD_USERNAME:admin}
+  password: ${NEXTCLOUD_PASSWORD:adminpass}
+
+socketio:
+  port: ${SOCKETIO_PORT:9092}
+
+usage:
+  default-quota-bytes: ${USAGE_QUOTA_BYTES_DEFAULT:104857600}
+  refresh:
+    fixed-delay-ms: ${USAGE_REFRESH_DELAY_MS:30000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
