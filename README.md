@@ -57,7 +57,7 @@ chmod +x start.sh
 │         Backend                      │  Spring Boot
 │       (Port 8080)                    │  - REST API
 │                                      │  - 주기적 폴링 (30초)
-└────────┬─────────────────────┬──────┘  - Webhook 수신
+└────────┬─────────────────────┬──────┘  
          │ OCS API             │ SQL
          ↓                     ↓
 ┌─────────────────┐    ┌──────────────┐
@@ -91,7 +91,6 @@ chmod +x start.sh
 
 ### 3. Nextcloud 통합
 - OCS Provisioning API를 통한 사용자/그룹/Quota 조회
-- Webhook 지원으로 파일 변경 시 즉시 업데이트 가능
 
 ### 4. 에러 핸들링
 - Nextcloud API 장애 시 5xx 에러 반환
@@ -183,42 +182,6 @@ NC_AUTO_INIT=false
   USAGE_REFRESH_DELAY_MS=30000  # 폴링 간격 (밀리초)
   ```
 
-### 2. Webhook 기반 즉시 업데이트
-
-파일 변경 시 즉시 사용량을 갱신하려면 Webhook을 호출하세요:
-
-```bash
-# 수동 테스트
-curl -X POST http://localhost:8080/api/webhooks/nextcloud \
-  -H "Content-Type: application/json" \
-  -H "X-Nextcloud-User: tenant-a-u1" \
-  -d '{"event":"file.created","file":"/test.txt"}'
-
-# 응답: {"status":"success","user":"tenant-a-u1"}
-```
-
-**동작 흐름:**
-```
-파일 변경 → Webhook 호출 → Backend 즉시 갱신 → Frontend 수동 새로고침 또는 30초 후 자동 갱신
-```
-
-### 3. Nextcloud Flow 연동 (선택사항)
-
-Nextcloud에서 파일 변경 시 자동으로 Webhook을 호출하도록 설정:
-
-1. Nextcloud 관리자 로그인 (`admin` / `adminpass`)
-2. **설정 → Flow** 이동
-3. 새 흐름 생성:
-   - **트리거**: 파일 생성/수정/삭제
-   - **작업**: 웹훅 호출
-     - URL: `http://backend:8080/api/webhooks/nextcloud`
-     - Method: `POST`
-     - Headers: `X-Nextcloud-User: {{user.id}}`
-
-**참고**: Polling이 기본으로 활성화되어 있어 Webhook 설정 없이도 시스템이 정상 작동합니다. 수동 새로고침 버튼(🔄 Refresh)을 사용하면 즉시 최신 데이터를 가져올 수 있습니다.
-
----
-
 ## 🐛 문제 해결
 
 ### Backend가 Nextcloud에 연결되지 않음
@@ -232,24 +195,6 @@ docker compose logs nextcloud | Select-String -Pattern "error" -Context 2
 
 # Backend에서 접근 테스트
 docker compose exec backend curl http://nextcloud/status.php
-```
-
-### 사용량이 업데이트되지 않음
-
-시스템은 30초마다 자동으로 폴링합니다. 즉시 업데이트하려면:
-
-```bash
-# Webhook으로 즉시 갱신
-curl -X POST http://localhost:8080/api/webhooks/nextcloud \
-  -H "Content-Type: application/json" \
-  -H "X-Nextcloud-User: tenant-a-u1" \
-  -d '{"event":"test"}'
-
-# 사용량 조회
-curl http://localhost:8080/api/tenants/1/usage
-
-# Backend 로그 확인 (폴링 동작 확인)
-docker compose logs backend --tail=50 | Select-String "UsageScheduler"
 ```
 
 ### 데이터베이스 초기화
