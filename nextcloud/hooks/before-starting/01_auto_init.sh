@@ -108,27 +108,5 @@ run_occ user:setting tenant-b-u1 files quota "${NC_AUTO_INIT_QUOTA}" >/dev/null 
 run_occ user:setting tenant-b-u2 files quota "${NC_AUTO_INIT_QUOTA}" >/dev/null 2>&1 || true
 run_occ user:setting tenant-b-u3 files quota "${NC_AUTO_INIT_QUOTA}" >/dev/null 2>&1 || true
 
-echo "[auto-init] enabling workflow and webhook apps"
-run_occ app:enable workflow_script >/dev/null 2>&1 || echo "[auto-init] workflow_script not available, skipping"
-run_occ app:enable files_automatedtagging >/dev/null 2>&1 || true
-run_occ app:enable workflowengine >/dev/null 2>&1 || true
-
-echo "[auto-init] configuring webhook for file changes"
-# Nextcloud Flow webhook 설정
-# 백엔드 webhook URL (docker network 내부 주소 사용)
-WEBHOOK_URL="${WEBHOOK_URL:-http://backend:8080/api/webhooks/nextcloud}"
-echo "[auto-init] webhook URL: ${WEBHOOK_URL}"
-
-# workflow_script가 있으면 webhook 설정
-if run_occ app:list | grep -q workflow_script; then
-  echo "[auto-init] setting up webhook flow for file operations"
-  # Note: Nextcloud Flow는 OCC로 직접 생성하기 어려우므로
-  # 대신 curl을 사용하여 OCS API로 설정합니다
-  echo "[auto-init] webhook configuration requires manual setup in Nextcloud Flow UI"
-  echo "[auto-init] or use external monitoring script"
-else
-  echo "[auto-init] workflow_script not available, webhook requires manual setup"
-fi
-
 echo "[auto-init] done"
 
