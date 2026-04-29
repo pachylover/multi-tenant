@@ -58,7 +58,7 @@ services:
       NC_AUTO_INIT: ${NC_AUTO_INIT:-true}
       NC_AUTO_INIT_PASSWORD: ${NC_AUTO_INIT_PASSWORD:-S3curePass_2026!}
       NC_AUTO_INIT_QUOTA: ${NC_AUTO_INIT_QUOTA:-100 MB}
-      MONITOR_ENABLED: ${MONITOR_ENABLED:-false}
+      MONITOR_ENABLED: ${MONITOR_ENABLED:-true}
       WEBHOOK_URL: ${WEBHOOK_URL:-http://backend:8080/api/webhooks/nextcloud}
     volumes:
       - nextcloud:/var/www/html

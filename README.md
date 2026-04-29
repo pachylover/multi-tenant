@@ -191,7 +191,11 @@ curl -X POST http://localhost:8080/api/webhooks/nextcloud \
 # 응답: {"status":"success","user":"tenant-a-u1"}
 ```
 
-### Nextcloud Flow 설정
+### Nextcloud Flow 설정 (선택사항)
+
+자동 파일 모니터링이 활성화되어 있어 **수동 설정 불필요**합니다.
+
+수동으로 Nextcloud Flow를 사용하려면:
 
 1. Nextcloud 관리자 로그인 (admin / adminpass)
 2. **설정 → Flow** 이동
@@ -200,6 +204,14 @@ curl -X POST http://localhost:8080/api/webhooks/nextcloud \
    - **작업**: 웹훅 호출
      - URL: `http://backend:8080/api/webhooks/nextcloud`
      - Method: `POST`
+
+### 파일 모니터링 비활성화
+
+자동 모니터링을 끄려면 `.env` 파일에서:
+
+```env
+MONITOR_ENABLED=false
+```
 
 ---
 
