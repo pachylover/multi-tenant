@@ -23,7 +23,19 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
       ...(init?.headers ?? {})
     }
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    // Try to parse error message from backend
+    let errorMsg = `${res.status} ${res.statusText}`;
+    try {
+      const errorBody = await res.json();
+      if (errorBody.error) {
+        errorMsg = errorBody.error;
+      }
+    } catch {
+      // If JSON parsing fails, use default message
+    }
+    throw new Error(errorMsg);
+  }
   return (await res.json()) as T;
 }
 

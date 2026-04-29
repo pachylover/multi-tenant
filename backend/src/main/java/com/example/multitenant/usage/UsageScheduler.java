@@ -6,7 +6,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-@Component
+/**
+ * DISABLED: Automatic polling removed in favor of webhook-based updates.
+ * Uncomment @Component to re-enable periodic polling.
+ */
+// @Component
 public class UsageScheduler {
 	private static final Logger log = LoggerFactory.getLogger(UsageScheduler.class);
 

@@ -63,10 +63,11 @@ public class UsageService {
 		usageCache.put(tenantId, out);
 
 		// notify interested clients that tenant usage changed
-		socketIOServer.getBroadcastOperations().sendEvent("tenantUsageUpdated", new TenantUsageUpdatedEvent(tenantId, now));
+		socketIOServer.getBroadcastOperations().sendEvent("tenantUsageUpdated", 
+				new TenantUsageUpdatedEvent(tenantId, now.toEpochMilli()));
 		return out;
 	}
 
-	public record TenantUsageUpdatedEvent(long tenantId, Instant at) {}
+	public record TenantUsageUpdatedEvent(long tenantId, long atMillis) {}
 }
 

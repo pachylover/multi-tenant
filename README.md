@@ -1,191 +1,275 @@
-## Multi-tenant Nextcloud storage monitor
+# Multi-Tenant Nextcloud Storage Monitor
 
-구성( `docker compose` ):
-- **DB**: Postgres
-- **Backend**: Spring Boot (API + Socket.IO)
-- **Frontend**: React ( `/admin/storage` )
-- **Nextcloud**: OCS provisioning API로 used/quota 조회
+실시간으로 Nextcloud 사용자들의 스토리지 사용량을 모니터링하는 멀티 테넌트 시스템입니다.
 
-### Quick start
+> **📚 API 문서:** [API_EXAMPLES.md](API_EXAMPLES.md) - 전체 API 응답 예시
 
-1) 환경변수 준비 (선택사항 - 기본값으로 실행 가능)
+## 📋 목차
 
-```bash
-copy .env.example .env
-# .env 파일을 필요에 따라 수정
+- [빠른 시작](#-빠른-시작)
+- [시스템 아키텍처](#-시스템-아키텍처)
+- [주요 기능](#-주요-기능)
+- [Webhook 설정](#-webhook-설정)
+- [문제 해결](#-문제-해결)
+
+## 🚀 빠른 시작
+
+### 사전 요구사항
+
+- Docker Desktop (Windows/Mac) 또는 Docker Engine + Docker Compose (Linux)
+- PowerShell 5.1 이상 (Windows)
+
+### 실행 방법
+
+#### Windows (PowerShell)
+
+```powershell
+.\start.ps1
 ```
 
-환경변수 파일을 생성하지 않아도 기본값으로 실행됩니다.
-
-2) 실행
+#### Linux/Mac
 
 ```bash
-docker-compose up -d
+chmod +x start.sh
+./start.sh
 ```
 
-첫 실행 시 이미지 빌드와 Nextcloud 초기화로 인해 2-3분 정도 소요될 수 있습니다.
+**첫 실행 시 2-3분 소요됩니다** (이미지 빌드 + Nextcloud 초기화)
 
-3) 접속
-- **Frontend**: `http://localhost:5173/admin/storage`
-- **Backend API**: `http://localhost:8080/api/tenants`
-- **Nextcloud**: `http://localhost:8081`
-  - 관리자: admin / adminpass
-  - 테스트 유저: tenant-a-u1, tenant-b-u1 등 / S3curePass_2026!
+스크립트가 자동으로:
+1. `.env` 파일 생성 (없는 경우)
+2. Docker Compose 실행
+3. 접속 정보 출력
 
-4) 종료
+---
 
-```bash
-docker-compose down
+## 🏗️ 시스템 아키텍처
+
+```
+┌─────────────────┐
+│   Frontend      │  React + Vite + Socket.IO Client
+│  (Port 5173)    │  - Admin UI (/admin/storage)
+└────────┬────────┘  - 실시간 사용량 모니터링
+         │
+         ├─────────────────────────┐
+         │ HTTP API                │ Socket.IO
+         ↓                         ↓
+┌─────────────────────────────────────┐
+│         Backend                      │  Spring Boot + netty-socketio
+│       (Port 8080 + 9092)             │  - REST API
+│                                      │  - 실시간 이벤트 브로드캐스트
+└────────┬─────────────────────┬──────┘  - Webhook 수신
+         │ OCS API             │ SQL
+         ↓                     ↓
+┌─────────────────┐    ┌──────────────┐
+│   Nextcloud     │    │  PostgreSQL  │
+│   (Port 8081)   │    │  (Port 5432) │
+│                 │    │              │
+│ - 파일 저장      │    │ - Tenant 정보 │
+│ - 사용자/그룹    │     │              │
+│ - Quota 관리    │     │              │
+└─────────────────┘    └──────────────┘
 ```
 
-데이터를 포함하여 완전히 제거하려면:
+### 기술 스택
+
+- **Frontend**: React 18, TypeScript, Vite, Socket.IO Client 4.x
+- **Backend**: Spring Boot 3.3.2, Java 21, netty-socketio 2.0.12
+- **Database**: PostgreSQL 16 + Flyway
+- **Storage**: Nextcloud 28 (Apache)
+- **Container**: Docker Compose
+
+## ✨ 주요 기능
+
+### 1. 실시간 모니터링
+- Socket.IO를 통한 실시간 사용량 업데이트
+- WebSocket 기반 자동 리프레시 (폴링 없음)
+
+### 2. 멀티 테넌트 지원
+- Tenant별 그룹 관리
+- Tenant별 사용량 집계 및 모니터링
+
+### 3. Nextcloud 통합
+- OCS Provisioning API를 통한 사용자/그룹/Quota 조회
+- Webhook 지원으로 파일 변경 시 즉시 업데이트
+
+### 4. 에러 핸들링
+- Nextcloud API 장애 시 5xx 에러 반환
+- 민감정보 자동 필터링
+- 상세한 에러 메시지 제공
+
+### 5. 자동 초기화
+- Docker Compose 실행 시 자동으로 그룹/사용자/Quota 생성
+- 개발 환경 즉시 사용 가능
+
+### 접속
+
+| 서비스 | URL | 계정 |
+|--------|-----|------|
+| **Frontend** | http://localhost:5173 | - |
+| **Admin UI** | http://localhost:5173/admin/storage | - |
+| **Backend API** | http://localhost:8080/api/tenants | - |
+| **Nextcloud** | http://localhost:8081 | admin / adminpass |
+| **Nextcloud 테스트 유저** | http://localhost:8081 | tenant-a-u1 / S3curePass_2026! |
+
+### 확인
+
 ```bash
-docker-compose down -v
+# Backend 헬스 체크
+curl http://localhost:8080/actuator/health
+
+# Tenant 목록 조회
+curl http://localhost:8080/api/tenants
+
+# Tenant 사용량 조회
+curl http://localhost:8080/api/tenants/1/usage
 ```
 
-### Nextcloud 초기 데이터(그룹/유저/quota) 자동 init
-
-기본값으로 `docker compose up` 시 아래가 **자동 생성**됩니다.
-- 그룹: `tenant-a`, `tenant-b`
-- 유저: 각 그룹별 3명
-- 유저 quota: 100MB
-- trusted domain: `localhost`, `nextcloud`
-
-자동 init을 끄려면 `.env`에서:
+### 종료
 
 ```bash
+# 컨테이너 중지
+docker compose down
+
+# 데이터 포함 완전 삭제
+docker compose down -v
+```
+
+---
+
+## 🔧 Nextcloud 자동 초기화
+
+Docker Compose 실행 시 자동으로 생성되는 테스트 데이터:
+
+- **그룹**: `tenant-a`, `tenant-b`
+- **사용자** (각 그룹당 3명):
+  - tenant-a: `tenant-a-u1`, `tenant-a-u2`, `tenant-a-u3`
+  - tenant-b: `tenant-b-u1`, `tenant-b-u2`, `tenant-b-u3`
+- **비밀번호**: `S3curePass_2026!`
+- **Quota**: 100MB (사용자당)
+
+자동 초기화 비활성화:
+
+```env
+# .env
 NC_AUTO_INIT=false
 ```
 
-### Nextcloud 초기 데이터(수동)
+---
 
-Nextcloud 컨테이너 내부에서 `occ`로 그룹/유저를 만들 수 있습니다.
+## 🌐 환경 변수
 
-```bash
-docker compose exec -u www-data nextcloud php occ group:add tenant-a
-docker compose exec -u www-data nextcloud php occ group:add tenant-b
+주요 환경 변수는 `.env.example`을 참고하세요. 기본값으로 실행 가능합니다.
 
-docker compose exec -u www-data nextcloud php occ user:add --password-from-env --display-name "A1" tenant-a-u1
-docker compose exec -u www-data nextcloud php occ user:add --password-from-env --display-name "A2" tenant-a-u2
-docker compose exec -u www-data nextcloud php occ user:add --password-from-env --display-name "A3" tenant-a-u3
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `NEXTCLOUD_BASE_URL` | `http://nextcloud` | Nextcloud API URL |
+| `NEXTCLOUD_USERNAME` | `admin` | API 인증 ID |
+| `NEXTCLOUD_PASSWORD` | `adminpass` | API 인증 비밀번호 |
+| `USAGE_QUOTA_BYTES_DEFAULT` | `104857600` | 기본 Quota (100MB) |
 
-docker compose exec -u www-data nextcloud php occ user:add --password-from-env --display-name "B1" tenant-b-u1
-docker compose exec -u www-data nextcloud php occ user:add --password-from-env --display-name "B2" tenant-b-u2
-docker compose exec -u www-data nextcloud php occ user:add --password-from-env --display-name "B3" tenant-b-u3
+---
 
-docker compose exec -u www-data nextcloud php occ group:adduser tenant-a tenant-a-u1
-docker compose exec -u www-data nextcloud php occ group:adduser tenant-a tenant-a-u2
-docker compose exec -u www-data nextcloud php occ group:adduser tenant-a tenant-a-u3
-docker compose exec -u www-data nextcloud php occ group:adduser tenant-b tenant-b-u1
-docker compose exec -u www-data nextcloud php occ group:adduser tenant-b tenant-b-u2
-docker compose exec -u www-data nextcloud php occ group:adduser tenant-b tenant-b-u3
+## 🔗 Webhook 설정
+
+Nextcloud 파일 변경 시 실시간으로 사용량을 업데이트합니다.
+
+### 동작 흐름
+
+```
+파일 생성/수정 → Nextcloud Webhook → Backend 갱신 → Socket.IO 이벤트 → Frontend 자동 업데이트
 ```
 
-신규 유저 비밀번호 정책 때문에, `--password-from-env` 사용 시 **강한 비밀번호**를 `OC_PASS`로 넘겨야 합니다.
+### 수동 테스트
 
 ```bash
-docker compose exec -u www-data -e OC_PASS="S3curePass_2026!" nextcloud php occ user:add --password-from-env --display-name "A1" tenant-a-u1
+curl -X POST http://localhost:8080/api/webhooks/nextcloud \
+  -H "Content-Type: application/json" \
+  -H "X-Nextcloud-User: tenant-a-u1" \
+  -d '{"event":"file.created","file":"/test.txt"}'
+
+# 응답: {"status":"success","user":"tenant-a-u1"}
 ```
 
-Backend 컨테이너에서 Nextcloud를 호출하려면 `nextcloud` 호스트가 trusted domain에 있어야 합니다(도커 네트워크 내부 호스트명).
+### Nextcloud Flow 설정
+
+1. Nextcloud 관리자 로그인 (admin / adminpass)
+2. **설정 → Flow** 이동
+3. 새 흐름 생성:
+   - **트리거**: 파일 생성/수정/삭제
+   - **작업**: 웹훅 호출
+     - URL: `http://backend:8080/api/webhooks/nextcloud`
+     - Method: `POST`
+
+---
+
+## 🐛 문제 해결
+
+### Backend가 Nextcloud에 연결되지 않음
 
 ```bash
-docker compose exec -u www-data nextcloud php occ config:system:set trusted_domains 1 --value=nextcloud
+# Nextcloud 컨테이너 상태 확인
+docker compose ps nextcloud
+
+# Nextcloud 로그 확인
+docker compose logs nextcloud | Select-String -Pattern "error" -Context 2
+
+# Backend에서 접근 테스트
+docker compose exec backend curl http://nextcloud/status.php
 ```
 
-Quota 100MB 설정(예: user별):
+### Socket.IO 연결 실패
 
 ```bash
-docker compose exec -u www-data nextcloud php occ user:setting tenant-a-u1 files quota 100 MB
+# Socket.IO 포트 확인
+curl http://localhost:9092/socket.io/?EIO=4&transport=polling
+
+# Backend 로그 확인 (Socket.IO 관련)
+docker compose logs backend | Select-String -Pattern "socket"
 ```
 
-### Notes
-- **Nextcloud 인증정보는 환경변수로만 관리**합니다. (코드 하드코딩 없음)
-- `GET /api/tenants/{tenantId}/usage` 는 Nextcloud 그룹 멤버를 조회하고, 유저별 used/quota를 가져와 반환합니다.
-- 변경 이벤트는 Socket.IO 이벤트 `tenantUsageUpdated` 로 브로드캐스트됩니다.
+브라우저 개발자 도구 (F12)에서 Socket.IO 연결 상태 확인
 
-### 유용한 명령어
+### 사용량이 업데이트되지 않음
 
-서비스 상태 확인:
 ```bash
-docker-compose ps
+# 캐시 상태 확인
+curl http://localhost:8080/api/tenants/1/usage/health
+
+# 수동 갱신
+curl -X POST http://localhost:8080/api/tenants/1/usage/refresh
+
+# Webhook 테스트
+curl -X POST http://localhost:8080/api/webhooks/nextcloud \
+  -H "Content-Type: application/json" \
+  -H "X-Nextcloud-User: tenant-a-u1" \
+  -d '{"event":"test"}'
 ```
 
-로그 확인:
+### 데이터베이스 초기화
+
 ```bash
+# 모든 데이터 삭제 및 재시작
+docker compose down -v
+docker compose up -d
+```
+
+### 로그 확인
+
+```powershell
 # 모든 서비스 로그
-docker-compose logs -f
-
-# 특정 서비스 로그
-docker-compose logs -f backend
-docker-compose logs -f nextcloud
-docker-compose logs -f frontend
-```
-
-서비스 재시작:
-```bash
-# 모든 서비스
-docker-compose restart
+docker compose logs -f
 
 # 특정 서비스만
-docker-compose restart backend
+docker compose logs -f backend
+docker compose logs -f nextcloud
+
+# 최근 100줄
+docker compose logs --tail=100 backend
 ```
 
-컨테이너 접속:
-```bash
-# Backend 컨테이너
-docker-compose exec backend sh
+---
 
-# Nextcloud 컨테이너
-docker-compose exec nextcloud bash
-```
+## 📖 추가 문서
 
-### 문제 해결
-
-**서비스가 시작되지 않는 경우:**
-```bash
-# 컨테이너 상태 확인
-docker-compose ps
-
-# 로그에서 에러 확인
-docker-compose logs
-```
-
-**Nextcloud 초기화가 안 된 경우:**
-```bash
-# Nextcloud 로그 확인
-docker-compose logs nextcloud
-
-# 수동으로 재초기화 (주의: 기존 데이터 삭제)
-docker-compose down -v
-docker-compose up -d
-```
-
-**Backend가 Nextcloud에 연결하지 못하는 경우:**
-```bash
-# Backend 로그 확인
-docker-compose logs backend
-
-# Nextcloud trusted domain 확인
-docker-compose exec -u www-data nextcloud php occ config:system:get trusted_domains
-```
-
-**포트 충돌이 발생하는 경우:**
-
-docker-compose.yml의 포트를 수정하세요:
-- Frontend: `5173:80` → `다른포트:80`
-- Backend: `8080:8080` → `다른포트:8080`
-- Nextcloud: `8081:80` → `다른포트:80`
-
-**완전히 재설치하려면:**
-```bash
-# 모든 컨테이너와 볼륨 삭제
-docker-compose down -v
-
-# 이미지도 삭제하고 싶다면
-docker-compose down -v --rmi all
-
-# 다시 시작
-docker-compose up -d --build
-```
-
+- [API_EXAMPLES.md](API_EXAMPLES.md) - 전체 API 응답 예시

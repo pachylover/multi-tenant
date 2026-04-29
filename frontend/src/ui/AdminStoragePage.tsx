@@ -55,12 +55,39 @@ export function AdminStoragePage() {
 
   const socket = useMemo(() => {
     try {
-      return io(SOCKET_URL, { transports: ['websocket'] });
-    } catch {
+      console.log('[Socket.IO] Connecting to:', SOCKET_URL);
+      const s = io(SOCKET_URL, {
+        transports: ['polling', 'websocket'],
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5
+      });
+
+      s.on('connect', () => {
+        console.log('[Socket.IO] ✅ Connected! ID:', s.id);
+      });
+
+      s.on('connect_error', (err) => {
+        console.error('[Socket.IO] ❌ Connection error:', err.message, err);
+      });
+
+      s.on('disconnect', (reason) => {
+        console.warn('[Socket.IO] ⚠️ Disconnected:', reason);
+      });
+
+      s.on('error', (err) => {
+        console.error('[Socket.IO] ❌ Error:', err);
+      });
+
+      return s;
+    } catch (err) {
+      console.error('[Socket.IO] ❌ Failed to create socket:', err);
       return null;
     }
   }, []);
 
+  // Socket 이벤트 리스너 등록 (tenantId 변경 시 업데이트)
   useEffect(() => {
     if (!socket) return;
     const handler = (evt: { tenantId: number }) => {
@@ -71,9 +98,18 @@ export function AdminStoragePage() {
     socket.on('tenantUsageUpdated', handler);
     return () => {
       socket.off('tenantUsageUpdated', handler);
-      socket.disconnect();
     };
   }, [socket, tenantId]);
+
+  // Socket 연결 정리 (컴포넌트 언마운트 시에만)
+  useEffect(() => {
+    return () => {
+      if (socket) {
+        console.log('[Socket.IO] Cleaning up socket connection');
+        socket.disconnect();
+      }
+    };
+  }, [socket]);
 
   return (
     <div className="page">

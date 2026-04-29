@@ -58,6 +58,8 @@ services:
       NC_AUTO_INIT: ${NC_AUTO_INIT:-true}
       NC_AUTO_INIT_PASSWORD: ${NC_AUTO_INIT_PASSWORD:-S3curePass_2026!}
       NC_AUTO_INIT_QUOTA: ${NC_AUTO_INIT_QUOTA:-100 MB}
+      MONITOR_ENABLED: ${MONITOR_ENABLED:-false}
+      WEBHOOK_URL: ${WEBHOOK_URL:-http://backend:8080/api/webhooks/nextcloud}
     volumes:
       - nextcloud:/var/www/html
     healthcheck:
@@ -88,7 +90,8 @@ services:
       NEXTCLOUD_PASSWORD: ${NEXTCLOUD_PASSWORD:-adminpass}
 
       SOCKETIO_PORT: 9092
-      USAGE_QUOTA_BYTES_DEFAULT: 104857600
+      USAGE_QUOTA_BYTES_DEFAULT: ${USAGE_QUOTA_BYTES_DEFAULT:-104857600}
+      USAGE_REFRESH_DELAY_MS: ${USAGE_REFRESH_DELAY_MS:-10000}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
       interval: 10s

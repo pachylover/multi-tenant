@@ -37,3 +37,10 @@ management:
       exposure:
         include: health,info
 
+logging:
+  level:
+    com.example.multitenant.socket: DEBUG
+    com.corundumstudio.socketio: DEBUG
+    io.netty: INFO
+    root: INFO
+

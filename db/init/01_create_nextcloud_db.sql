@@ -1,9 +1,4 @@
-DO
-$$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'nextcloud') THEN
-    CREATE DATABASE nextcloud OWNER app;
-  END IF;
-END
-$$;
+-- Create nextcloud database if it doesn't exist
+-- Note: PostgreSQL's docker-entrypoint runs this script only once, so no need for conditional check
+CREATE DATABASE nextcloud OWNER app;
 

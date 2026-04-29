@@ -29,28 +29,36 @@ public class NextcloudClient {
 	 * Response shape (simplified): ocs.data.users: [ "user1", ... ]
 	 */
 	public List<String> getGroupMembers(String groupId) {
-		JsonNode root =
-				webClient
-						.get()
-						.uri(
-								uriBuilder ->
-										uriBuilder
-												.path("/ocs/v2.php/cloud/groups/{groupId}")
-												.queryParam("format", "json")
-												.build(groupId))
-						.retrieve()
-						.bodyToMono(JsonNode.class)
-						.block();
+		try {
+			JsonNode root =
+					webClient
+							.get()
+							.uri(
+									uriBuilder ->
+											uriBuilder
+													.path("/ocs/v2.php/cloud/groups/{groupId}")
+													.queryParam("format", "json")
+													.build(groupId))
+							.retrieve()
+							.onStatus(
+									status -> status.is4xxClientError() || status.is5xxServerError(),
+									response -> response.bodyToMono(String.class).map(body ->
+											new NextcloudApiException("Failed to get group members for " + groupId + ": " + response.statusCode() + " - " + body)))
+							.bodyToMono(JsonNode.class)
+							.block();
 
-		JsonNode data = OcsResponseParser.requireOcsData(root);
-		JsonNode users = data.path("users");
-		List<String> out = new ArrayList<>();
-		if (users.isArray()) {
-			for (JsonNode u : users) {
-				out.add(u.asText());
+			JsonNode data = OcsResponseParser.requireOcsData(root);
+			JsonNode users = data.path("users");
+			List<String> out = new ArrayList<>();
+			if (users.isArray()) {
+				for (JsonNode u : users) {
+					out.add(u.asText());
+				}
 			}
+			return out;
+		} catch (Exception e) {
+			throw new NextcloudApiException("Error fetching group members for " + groupId + ": " + e.getMessage(), e);
 		}
-		return out;
 	}
 
 	/**
@@ -59,24 +67,34 @@ public class NextcloudClient {
 	 * Response: ocs.data.quota.used, ocs.data.quota.quota (bytes)
 	 */
 	public UserQuota getUserQuota(String userId) {
-		JsonNode root =
-				webClient
-						.get()
-						.uri(
-								uriBuilder ->
-										uriBuilder
-												.path("/ocs/v2.php/cloud/users/{userId}")
-												.queryParam("format", "json")
-												.build(userId))
-						.retrieve()
-						.bodyToMono(JsonNode.class)
-						.block();
+		try {
+			JsonNode root =
+					webClient
+							.get()
+							.uri(
+									uriBuilder ->
+											uriBuilder
+													.path("/ocs/v2.php/cloud/users/{userId}")
+													.queryParam("format", "json")
+													.build(userId))
+							.retrieve()
+							.onStatus(
+									status -> status.is4xxClientError() || status.is5xxServerError(),
+									response -> response.bodyToMono(String.class).map(body ->
+											new NextcloudApiException("Failed to get user quota for " + userId + ": " + response.statusCode() + " - " + body)))
+							.bodyToMono(JsonNode.class)
+							.block();
 
-		JsonNode data = OcsResponseParser.requireOcsData(root);
-		JsonNode quota = data.path("quota");
-		long used = quota.path("used").asLong(0);
-		long quotaBytes = quota.path("quota").asLong(0);
-		return new UserQuota(used, quotaBytes);
+			JsonNode data = OcsResponseParser.requireOcsData(root);
+			JsonNode quota = data.path("quota");
+			long used = quota.path("used").asLong(0);
+			long quotaBytes = quota.path("quota").asLong(0);
+			return new UserQuota(used, quotaBytes);
+		} catch (NextcloudApiException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new NextcloudApiException("Error fetching user quota for " + userId + ": " + e.getMessage(), e);
+		}
 	}
 
 	private static String basicAuth(String username, String password) {

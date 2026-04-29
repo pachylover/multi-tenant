@@ -13,5 +13,4 @@ dist/
 
 # Env
 .env
-.env.*
 
