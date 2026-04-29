@@ -9,7 +9,7 @@
 - [빠른 시작](#-빠른-시작)
 - [시스템 아키텍처](#-시스템-아키텍처)
 - [주요 기능](#-주요-기능)
-- [Webhook 설정](#-webhook-설정)
+- [사용량 업데이트 방식](#-사용량-업데이트-방식)
 - [문제 해결](#-문제-해결)
 
 ## 🚀 빠른 시작
@@ -47,17 +47,16 @@ chmod +x start.sh
 
 ```
 ┌─────────────────┐
-│   Frontend      │  React + Vite + Socket.IO Client
+│   Frontend      │  React + Vite
 │  (Port 5173)    │  - Admin UI (/admin/storage)
-└────────┬────────┘  - 실시간 사용량 모니터링
+└────────┬────────┘  - 사용량 모니터링 + 수동 새로고침
          │
-         ├─────────────────────────┐
-         │ HTTP API                │ Socket.IO
-         ↓                         ↓
+         │ HTTP API
+         ↓
 ┌─────────────────────────────────────┐
-│         Backend                      │  Spring Boot + netty-socketio
-│       (Port 8080 + 9092)             │  - REST API
-│                                      │  - 실시간 이벤트 브로드캐스트
+│         Backend                      │  Spring Boot
+│       (Port 8080)                    │  - REST API
+│                                      │  - 주기적 폴링 (30초)
 └────────┬─────────────────────┬──────┘  - Webhook 수신
          │ OCS API             │ SQL
          ↓                     ↓
@@ -73,8 +72,8 @@ chmod +x start.sh
 
 ### 기술 스택
 
-- **Frontend**: React 18, TypeScript, Vite, Socket.IO Client 4.x
-- **Backend**: Spring Boot 3.3.2, Java 21, netty-socketio 2.0.12
+- **Frontend**: React 18, TypeScript, Vite
+- **Backend**: Spring Boot 3.3.2, Java 21
 - **Database**: PostgreSQL 16 + Flyway
 - **Storage**: Nextcloud 28 (Apache)
 - **Container**: Docker Compose
@@ -82,7 +81,8 @@ chmod +x start.sh
 ## ✨ 주요 기능
 
 ### 1. 사용량 모니터링
-- 새로고침 버튼으로 최신 데이터 조회
+- 주기적 Polling으로 자동 업데이트 (30초 간격)
+- 수동 새로고침 버튼(🔄 Refresh)으로 즉시 갱신
 - Nextcloud API를 통한 실시간 용량 확인
 
 ### 2. 멀티 테넌트 지원
@@ -91,7 +91,7 @@ chmod +x start.sh
 
 ### 3. Nextcloud 통합
 - OCS Provisioning API를 통한 사용자/그룹/Quota 조회
-- 필요 시 새로고침 버튼으로 최신 데이터 조회
+- Webhook 지원으로 파일 변경 시 즉시 업데이트 가능
 
 ### 4. 에러 핸들링
 - Nextcloud API 장애 시 5xx 에러 반환
@@ -170,20 +170,52 @@ NC_AUTO_INIT=false
 
 ---
 
-## � 사용량 갱신
+## 🔄 사용량 업데이트 방식
 
-사용량 데이터는 자동으로 갱신되지 않으며, 필요 시 수동으로 새로고침할 수 있습니다.
+시스템은 **하이브리드 방식**으로 사용량을 업데이트합니다:
 
-### Frontend UI에서 갱신
+### 1. 주기적 Polling (기본 활성화)
 
-Admin Storage 페이지 (`http://localhost:5173/admin/storage`)에서 "🔄 Refresh" 버튼 클릭
+- **자동 갱신**: 30초마다 모든 tenant 사용량을 자동으로 업데이트
+- **안정적**: Nextcloud API 직접 호출로 정확한 데이터 보장
+- **설정 변경** (`.env` 파일):
+  ```env
+  USAGE_REFRESH_DELAY_MS=30000  # 폴링 간격 (밀리초)
+  ```
 
-### API로 갱신
+### 2. Webhook 기반 즉시 업데이트
+
+파일 변경 시 즉시 사용량을 갱신하려면 Webhook을 호출하세요:
 
 ```bash
-# 특정 Tenant 사용량 강제 갱신
-curl -X POST http://localhost:8080/api/tenants/1/usage/refresh
+# 수동 테스트
+curl -X POST http://localhost:8080/api/webhooks/nextcloud \
+  -H "Content-Type: application/json" \
+  -H "X-Nextcloud-User: tenant-a-u1" \
+  -d '{"event":"file.created","file":"/test.txt"}'
+
+# 응답: {"status":"success","user":"tenant-a-u1"}
 ```
+
+**동작 흐름:**
+```
+파일 변경 → Webhook 호출 → Backend 즉시 갱신 → Frontend 수동 새로고침 또는 30초 후 자동 갱신
+```
+
+### 3. Nextcloud Flow 연동 (선택사항)
+
+Nextcloud에서 파일 변경 시 자동으로 Webhook을 호출하도록 설정:
+
+1. Nextcloud 관리자 로그인 (`admin` / `adminpass`)
+2. **설정 → Flow** 이동
+3. 새 흐름 생성:
+   - **트리거**: 파일 생성/수정/삭제
+   - **작업**: 웹훅 호출
+     - URL: `http://backend:8080/api/webhooks/nextcloud`
+     - Method: `POST`
+     - Headers: `X-Nextcloud-User: {{user.id}}`
+
+**참고**: Polling이 기본으로 활성화되어 있어 Webhook 설정 없이도 시스템이 정상 작동합니다. 수동 새로고침 버튼(🔄 Refresh)을 사용하면 즉시 최신 데이터를 가져올 수 있습니다.
 
 ---
 
@@ -204,12 +236,20 @@ docker compose exec backend curl http://nextcloud/status.php
 
 ### 사용량이 업데이트되지 않음
 
-```bash
-# 캐시 상태 확인
-curl http://localhost:8080/api/tenants/1/usage/health
+시스템은 30초마다 자동으로 폴링합니다. 즉시 업데이트하려면:
 
-# 수동 갱신
-curl -X POST http://localhost:8080/api/tenants/1/usage/refresh
+```bash
+# Webhook으로 즉시 갱신
+curl -X POST http://localhost:8080/api/webhooks/nextcloud \
+  -H "Content-Type: application/json" \
+  -H "X-Nextcloud-User: tenant-a-u1" \
+  -d '{"event":"test"}'
+
+# 사용량 조회
+curl http://localhost:8080/api/tenants/1/usage
+
+# Backend 로그 확인 (폴링 동작 확인)
+docker compose logs backend --tail=50 | Select-String "UsageScheduler"
 ```
 
 ### 데이터베이스 초기화

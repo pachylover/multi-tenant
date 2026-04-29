@@ -1,6 +1,5 @@
 package com.example.multitenant.usage;
 
-import com.corundumstudio.socketio.SocketIOServer;
 import com.example.multitenant.nextcloud.NextcloudClient;
 import com.example.multitenant.tenant.Tenant;
 import com.example.multitenant.tenant.TenantRepository;
@@ -16,19 +15,16 @@ public class UsageService {
 	private final NextcloudClient nextcloudClient;
 	private final UsageCache usageCache;
 	private final UsageProperties usageProperties;
-	private final SocketIOServer socketIOServer;
 
 	public UsageService(
 			TenantRepository tenantRepository,
 			NextcloudClient nextcloudClient,
 			UsageCache usageCache,
-			UsageProperties usageProperties,
-			SocketIOServer socketIOServer) {
+			UsageProperties usageProperties) {
 		this.tenantRepository = tenantRepository;
 		this.nextcloudClient = nextcloudClient;
 		this.usageCache = usageCache;
 		this.usageProperties = usageProperties;
-		this.socketIOServer = socketIOServer;
 	}
 
 	@Transactional(readOnly = true)
@@ -61,13 +57,7 @@ public class UsageService {
 		}
 
 		usageCache.put(tenantId, out);
-
-		// notify interested clients that tenant usage changed
-		socketIOServer.getBroadcastOperations().sendEvent("tenantUsageUpdated", 
-				new TenantUsageUpdatedEvent(tenantId, now.toEpochMilli()));
 		return out;
 	}
-
-	public record TenantUsageUpdatedEvent(long tenantId, long atMillis) {}
 }
 

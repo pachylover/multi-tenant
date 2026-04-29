@@ -1,9 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import io from 'socket.io-client';
+import React, { useEffect, useState } from 'react';
 import { getTenantUsage, listTenants, TenantDto, TenantUserUsageDto } from './api';
 import { bytesToMb, clamp } from './format';
-
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? 'http://localhost:9092';
 
 function ProgressBar({ percent }: { percent: number }) {
   const p = clamp(percent, 0, 100);
@@ -48,68 +45,16 @@ export function AdminStoragePage() {
     }
   };
 
+  const handleRefresh = () => {
+    if (tenantId != null && !loading) {
+      loadUsage(tenantId);
+    }
+  };
+
   useEffect(() => {
     if (tenantId == null) return;
     loadUsage(tenantId);
   }, [tenantId]);
-
-  const socket = useMemo(() => {
-    try {
-      console.log('[Socket.IO] Connecting to:', SOCKET_URL);
-      const s = io(SOCKET_URL, {
-        transports: ['polling', 'websocket'],
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        reconnectionAttempts: 5
-      });
-
-      s.on('connect', () => {
-        console.log('[Socket.IO] ✅ Connected! ID:', s.id);
-      });
-
-      s.on('connect_error', (err) => {
-        console.error('[Socket.IO] ❌ Connection error:', err.message, err);
-      });
-
-      s.on('disconnect', (reason) => {
-        console.warn('[Socket.IO] ⚠️ Disconnected:', reason);
-      });
-
-      s.on('error', (err) => {
-        console.error('[Socket.IO] ❌ Error:', err);
-      });
-
-      return s;
-    } catch (err) {
-      console.error('[Socket.IO] ❌ Failed to create socket:', err);
-      return null;
-    }
-  }, []);
-
-  // Socket 이벤트 리스너 등록 (tenantId 변경 시 업데이트)
-  useEffect(() => {
-    if (!socket) return;
-    const handler = (evt: { tenantId: number }) => {
-      if (tenantId != null && evt.tenantId === tenantId) {
-        loadUsage(tenantId);
-      }
-    };
-    socket.on('tenantUsageUpdated', handler);
-    return () => {
-      socket.off('tenantUsageUpdated', handler);
-    };
-  }, [socket, tenantId]);
-
-  // Socket 연결 정리 (컴포넌트 언마운트 시에만)
-  useEffect(() => {
-    return () => {
-      if (socket) {
-        console.log('[Socket.IO] Cleaning up socket connection');
-        socket.disconnect();
-      }
-    };
-  }, [socket]);
 
   return (
     <div className="page">
@@ -143,7 +88,17 @@ export function AdminStoragePage() {
       <div className="card">
         <div className="cardHeader">
           <div>Usage</div>
-          <div className="muted">{loading ? 'Loading…' : `Users: ${rows.length}`}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              className="btnRefresh"
+              onClick={handleRefresh}
+              disabled={loading || tenantId == null}
+              title="Refresh usage data"
+            >
+              🔄 Refresh
+            </button>
+            <div className="muted">{loading ? 'Loading…' : `Users: ${rows.length}`}</div>
+          </div>
         </div>
 
         <div className="tableWrap">

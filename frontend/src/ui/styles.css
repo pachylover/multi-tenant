@@ -43,4 +43,23 @@ body{
 .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;}
 .progressOuter{height:10px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,.06);}
 .progressInner{height:100%;background:linear-gradient(90deg,var(--gray) 0%, var(--red) 100%);}
+.btnRefresh{
+  background:rgba(255,255,255,.08);
+  color:var(--text);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:6px 12px;
+  font-size:13px;
+  font-weight:500;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.btnRefresh:hover:not(:disabled){
+  background:rgba(255,255,255,.12);
+  border-color:rgba(255,255,255,.15);
+}
+.btnRefresh:disabled{
+  opacity:0.4;
+  cursor:not-allowed;
+}
 

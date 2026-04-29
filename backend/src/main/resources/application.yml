@@ -23,9 +23,6 @@ nextcloud:
   username: ${NEXTCLOUD_USERNAME:admin}
   password: ${NEXTCLOUD_PASSWORD:adminpass}
 
-socketio:
-  port: ${SOCKETIO_PORT:9092}
-
 usage:
   default-quota-bytes: ${USAGE_QUOTA_BYTES_DEFAULT:104857600}
   refresh:
@@ -39,8 +36,5 @@ management:
 
 logging:
   level:
-    com.example.multitenant.socket: DEBUG
-    com.corundumstudio.socketio: DEBUG
-    io.netty: INFO
     root: INFO
 

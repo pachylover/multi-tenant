@@ -7,7 +7,6 @@ Multi-Tenant Nextcloud Storage Monitor의 모든 API 엔드포인트에 대한 �
 - [Tenant API](#tenant-api)
 - [Usage API](#usage-api)
 - [Webhook API](#webhook-api)
-- [Socket.IO 이벤트](#socketio-이벤트)
 - [에러 응답](#에러-응답)
 
 ---
@@ -172,17 +171,7 @@ curl -X POST http://localhost:8080/api/tenants/1/usage/refresh
 ]
 ```
 
-**참고**: 갱신 후 Socket.IO를 통해 `tenantUsageUpdated` 이벤트가 자동으로 브로드캐스트됩니다.
-
-#### Socket.IO 이벤트
-
-```javascript
-// Frontend에서 수신되는 이벤트
-{
-  "tenantId": 1,
-  "atMillis": 1714388730456
-}
-```
+**참고**: 갱신 후 캐시가 업데이트되며, 프론트엔드는 수동 새로고침 버튼을 통해 즉시 최신 데이터를 조회할 수 있습니다.
 
 #### 실패 응답 - Nextcloud 그룹 없음 (500 Internal Server Error)
 
@@ -325,32 +314,6 @@ curl http://localhost:8080/api/webhooks/nextcloud/health
 
 ---
 
-## Socket.IO 이벤트
-
-### tenantUsageUpdated
-
-Tenant 사용량이 갱신되면 자동으로 브로드캐스트됩니다.
-
-#### 이벤트 데이터
-
-```json
-{
-  "tenantId": 1,
-  "atMillis": 1714388730456
-}
-```
-
-#### Frontend 수신 예시
-
-```typescript
-socket.on('tenantUsageUpdated', (data: { tenantId: number; atMillis: number }) => {
-  console.log(`Tenant ${data.tenantId} 사용량 업데이트됨`);
-  // 자동으로 API 재호출하여 최신 데이터 표시
-});
-```
-
----
-
 ## 에러 응답
 
 ### 공통 에러 형식
@@ -469,42 +432,6 @@ Authorization: Bearer abc123def456
 
 ---
 
-## Socket.IO 이벤트
-
-### 이벤트: tenantUsageUpdated
-
-사용량이 갱신될 때마다 브로드캐스트됩니다.
-
-#### 이벤트 데이터
-
-```javascript
-{
-  "tenantId": 1,
-  "atMillis": 1714388730456  // Unix timestamp in milliseconds
-}
-```
-
-#### Frontend 구독 예시
-
-```typescript
-import { io } from 'socket.io-client';
-
-const socket = io('http://localhost:9092', {
-  transports: ['polling', 'websocket'],
-  reconnection: true
-});
-
-socket.on('tenantUsageUpdated', (data) => {
-  console.log('Usage updated:', data);
-  // data.tenantId가 현재 선택된 tenant면 UI 갱신
-  if (data.tenantId === currentTenantId) {
-    refreshUsageData();
-  }
-});
-```
-
----
-
 ## 응답 시간 참고
 
 | 엔드포인트 | 평균 응답 시간 |
@@ -530,7 +457,7 @@ socket.on('tenantUsageUpdated', (data) => {
 
 - Nextcloud OCS API는 요청 제한이 없습니다 (기본 설정)
 - 대량 요청 시 Nextcloud 성능에 영향을 줄 수 있습니다
-- 프로덕션에서는 Webhook 사용을 권장합니다 (폴링 비활성화됨)
+- 주기적 폴링(30초 간격)과 수동 새로고침 버튼으로 사용량을 모니터링합니다
 
 ### 보안 고려사항
 

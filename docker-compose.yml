@@ -79,7 +79,6 @@ services:
         condition: service_healthy
     ports:
       - "8080:8080"
-      - "9092:9092" # Socket.IO
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/multitenant
       SPRING_DATASOURCE_USERNAME: app
@@ -89,7 +88,6 @@ services:
       NEXTCLOUD_USERNAME: ${NEXTCLOUD_USERNAME:-admin}
       NEXTCLOUD_PASSWORD: ${NEXTCLOUD_PASSWORD:-adminpass}
 
-      SOCKETIO_PORT: 9092
       USAGE_QUOTA_BYTES_DEFAULT: ${USAGE_QUOTA_BYTES_DEFAULT:-104857600}
       USAGE_REFRESH_DELAY_MS: ${USAGE_REFRESH_DELAY_MS:-10000}
     healthcheck:

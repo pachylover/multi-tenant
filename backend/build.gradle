@@ -29,7 +29,6 @@ dependencies {
 	runtimeOnly 'org.postgresql:postgresql'
 
 	implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
-	implementation 'com.corundumstudio.socketio:netty-socketio:2.0.12'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
